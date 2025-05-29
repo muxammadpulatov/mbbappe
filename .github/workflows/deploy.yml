@@ -1,0 +1,51 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 🔐 Checkout repository
+      uses: actions/checkout@v3
+
+    - name: 🛠️ Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 🔑 Add SSH key
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+    - name: 🚀 Deploy to EC2
+      run: |
+        ssh -o StrictHostKeyChecking=no ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+          # Loyihani yangilash
+          cd ~/mbbappe
+          git pull origin main
+
+          # Python virtual muhitini faollashtirish
+          source venv/bin/activate
+
+          # Python kutubxonalarini o'rnatish
+          pip install -r requirements.txt
+
+          # Django migratsiyalarini bajarish
+          python manage.py migrate
+
+          # Statik fayllarni yig'ish
+          python manage.py collectstatic --noinput
+
+          # Backendni 8000-portda ishga tushirish
+          nohup python manage.py runserver 0.0.0.0:8000 &
+
+          # Frontendni 5500-portda ishga tushirish
+          cd frontend
+          nohup npm install && npm run dev -- --port 5500 &
+        EOF
